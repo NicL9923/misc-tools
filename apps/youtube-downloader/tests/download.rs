@@ -134,7 +134,7 @@ fn stream_completion_does_not_hide_a_later_failure() {
 #[test]
 fn final_path_survives_immediate_exit_and_unusual_characters() {
     let (directory, executable) = fake(
-        "import pathlib, json\np = pathlib.Path(__file__).parent / 'quotes \\\" café\\nvideo.mkv'\np.write_bytes(b'video')\nprint('PROGRESS:{\"status\":\"finished\"}')\nprint('PROCESSING:{}')\nprint('FILE:' + json.dumps(str(p)))",
+        "import pathlib, json\np = pathlib.Path.cwd() / 'quotes \\\" café\\nvideo.mkv'\np.write_bytes(b'video')\nprint('PROGRESS:{\"status\":\"finished\"}')\nprint('PROCESSING:{}')\nprint('FILE:' + json.dumps(str(p)))",
     );
     let job = Job::with_executable(
         Operation::Download {
@@ -248,4 +248,146 @@ fn destination_variables_and_trailing_spaces_are_preserved() {
         matches!(terminal(&job).0, Event::Completed(path) if path == destination.join("video.mkv"))
     );
     assert!(destination.join("video.mkv").is_file());
+}
+
+#[test]
+fn cancelled_conversion_stays_private_and_retry_discards_truncated_output() {
+    let (directory, executable) = fake(
+        "import pathlib,time\npathlib.Path('video.mp3').write_bytes(b'truncated')\npathlib.Path('video.webm.part').write_bytes(b'resumable')\npathlib.Path(__file__).with_name('started').touch()\ntime.sleep(30)",
+    );
+    let operation = Operation::Download {
+        url: URL.into(),
+        destination: directory.path().into(),
+        output: Output::Mp3,
+        height: None,
+    };
+    let job = Job::with_executable(operation.clone(), executable.clone());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !directory.path().join("started").exists() {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(10));
+    }
+    job.cancel();
+    assert!(matches!(terminal(&job).0, Event::Cancelled));
+    assert!(!directory.path().join("video.mp3").exists());
+    fs::write(&executable, "#!/usr/bin/env python3\nimport pathlib\nassert not pathlib.Path('video.mp3').exists()\nassert pathlib.Path('video.webm.part').read_bytes()==b'resumable'\npathlib.Path('video.mp3').write_bytes(b'complete')\nprint('FILE:\"video.mp3\"')\n").unwrap();
+    // Simulate a crash leaving another apparently finished conversion behind.
+    let stage = directory
+        .path()
+        .join(".misc-tools-partials/BaW_jenozKc-mp3-best");
+    fs::write(stage.join("video.mp3"), b"crashed conversion").unwrap();
+    let retry = Job::with_executable(operation, executable);
+    assert!(matches!(terminal(&retry).0, Event::Completed(_)));
+    assert_eq!(
+        fs::read(directory.path().join("video.mp3")).unwrap(),
+        b"complete"
+    );
+}
+
+#[test]
+fn publication_never_replaces_an_existing_destination() {
+    let (directory, executable) = fake(
+        "import pathlib\npathlib.Path('video.mkv').write_bytes(b'new download')\nprint('FILE:\"video.mkv\"')",
+    );
+    fs::write(directory.path().join("video.mkv"), b"keep original").unwrap();
+    let job = Job::with_executable(
+        Operation::Download {
+            url: URL.into(),
+            destination: directory.path().into(),
+            output: Output::Video,
+            height: None,
+        },
+        executable,
+    );
+    assert!(
+        matches!(terminal(&job).0, Event::Failed(message) if message.contains("already exists"))
+    );
+    assert_eq!(
+        fs::read(directory.path().join("video.mkv")).unwrap(),
+        b"keep original"
+    );
+}
+
+#[test]
+fn concurrent_downloads_cannot_share_the_same_working_files() {
+    let (directory, executable) = fake(
+        "import pathlib,time\npathlib.Path(__file__).with_name('started').touch()\ntime.sleep(30)",
+    );
+    let operation = Operation::Download {
+        url: URL.into(),
+        destination: directory.path().into(),
+        output: Output::Video,
+        height: None,
+    };
+    let first = Job::with_executable(operation.clone(), executable.clone());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !directory.path().join("started").exists() {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(10));
+    }
+    let second = Job::with_executable(operation, executable);
+    assert!(
+        matches!(terminal(&second).0, Event::Failed(message) if message.contains("another window"))
+    );
+    first.cancel();
+    assert!(matches!(terminal(&first).0, Event::Cancelled));
+}
+
+// Runs only as a subprocess of the crash-recovery regression below.
+#[test]
+#[ignore = "subprocess fixture"]
+fn crash_fixture_helper() {
+    let destination = PathBuf::from(std::env::var_os("MISC_TEST_DESTINATION").unwrap());
+    let executable = PathBuf::from(std::env::var_os("MISC_TEST_EXECUTABLE").unwrap());
+    let _job = Job::with_executable(
+        Operation::Download {
+            url: URL.into(),
+            destination: destination.clone(),
+            output: Output::Video,
+            height: None,
+        },
+        executable,
+    );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !destination.join("writer.pid").exists() {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(10));
+    }
+    // Simulate GUI death: no destructors and no process-group cleanup.
+    unsafe {
+        libc::_exit(0);
+    }
+}
+
+#[test]
+fn supervisor_crash_does_not_unlock_a_still_running_downloader() {
+    let (directory, executable) = fake(
+        "import pathlib,os,time\npathlib.Path(__file__).with_name('writer.pid').write_text(str(os.getpid()))\ntime.sleep(30)",
+    );
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--ignored", "--exact", "crash_fixture_helper"])
+        .env("MISC_TEST_DESTINATION", directory.path())
+        .env("MISC_TEST_EXECUTABLE", &executable)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let pid: i32 = fs::read_to_string(directory.path().join("writer.pid"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    let retry = Job::with_executable(
+        Operation::Download {
+            url: URL.into(),
+            destination: directory.path().into(),
+            output: Output::Video,
+            height: None,
+        },
+        executable,
+    );
+    let (event, _) = terminal(&retry);
+    unsafe {
+        libc::kill(-pid, libc::SIGKILL);
+    }
+    assert!(matches!(event, Event::Failed(message) if message.contains("another window")));
 }

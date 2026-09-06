@@ -12,7 +12,7 @@ Paste a single YouTube video link, inspect it, choose video or audio and a desti
 - Original audio or high-quality MP3 conversion.
 - Resolution caps based on the inspected video's available formats.
 - Progress, cancellation of both yt-dlp and FFmpeg, and opening the saved file or folder.
-- Remembering the destination folder, with no silent overwrites. Partial files stay available for retry.
+- Remembering the destination folder, with no overwrites. An existing filename produces an explicit conflict instead of returning an older download.
 
 MP4-compatible streams may offer fewer resolutions than MKV. A resolution cap is an upper limit, not a promise that every format is available at that resolution.
 
@@ -41,6 +41,8 @@ cargo build --locked --release --package youtube-downloader
 ```
 
 The binary uses separately installed download tools. It does not bundle or silently update them. If YouTube extraction stops working, update yt-dlp and its challenge components first. The app reports missing executables at startup.
+
+Downloads and conversions run in `.misc-tools-partials` inside the selected folder. Completed files move atomically into the destination without replacing existing files. Cancelled or failed conversions are discarded; download fragments remain for retry. You may remove `.misc-tools-partials` when no downloads are running if you no longer need those fragments.
 
 ### Scope and development
 

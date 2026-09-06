@@ -1,9 +1,11 @@
 use anyhow::{Context, Result, bail};
 use async_channel::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
+use std::os::{fd::AsRawFd, unix::ffi::OsStrExt};
 use std::{
     collections::VecDeque,
     ffi::OsString,
+    fs::{self, File, OpenOptions},
     io::{BufRead, BufReader, Read},
     path::PathBuf,
     process::{Command, Stdio},
@@ -277,7 +279,10 @@ impl Job {
         let worker_control = control.clone();
         thread::spawn(move || {
             let result = run(operation, executable, &worker_control, &send);
-            let terminal = if worker_control.cancelled.load(Ordering::SeqCst) {
+            let terminal = if matches!(&result, Ok(Event::Completed(_))) {
+                // Once atomically published, completion wins a concurrent cancel.
+                result.unwrap()
+            } else if worker_control.cancelled.load(Ordering::SeqCst) {
                 Event::Cancelled
             } else {
                 result.unwrap_or_else(|error| Event::Failed(format!("{error:#}")))
@@ -304,6 +309,137 @@ struct Collected {
     path: Option<PathBuf>,
     diagnostics: VecDeque<String>,
     parse_error: Option<String>,
+}
+
+/// Keep conversion output private until it is complete. A crash or cancellation
+/// may leave an apparently finished MP3 behind; remove it before retrying.
+struct Staging {
+    directory: PathBuf,
+    destination: PathBuf,
+    _lock: File,
+}
+
+impl Staging {
+    fn new(operation: &Operation) -> Result<Option<Self>> {
+        let Operation::Download {
+            url,
+            destination,
+            output,
+            height,
+        } = operation
+        else {
+            return Ok(None);
+        };
+        if !destination.is_dir() {
+            bail!("Choose an existing destination folder.");
+        }
+        let destination = destination
+            .canonicalize()
+            .context("Could not access the destination folder.")?;
+        let url = normalize_url(url)?;
+        let id = url.rsplit('=').next().unwrap();
+        let format = match output {
+            Output::Video => "mkv",
+            Output::Mp4 => "mp4",
+            Output::Audio => "audio",
+            Output::Mp3 => "mp3",
+        };
+        let quality = height
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| "best".into());
+        let directory = destination
+            .join(".misc-tools-partials")
+            .join(format!("{id}-{format}-{quality}"));
+        fs::create_dir_all(&directory)
+            .context("Could not create a working folder in the destination.")?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(directory.join(".lock"))?;
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == -1 {
+            bail!(
+                "This video and format are already downloading into that folder in another window."
+            );
+        }
+        let staging = Self {
+            directory: directory.canonicalize()?,
+            destination,
+            _lock: lock,
+        };
+        staging.clean_incomplete_outputs()?;
+        Ok(Some(staging))
+    }
+
+    fn clean_incomplete_outputs(&self) -> Result<()> {
+        for entry in fs::read_dir(&self.directory)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            let fragment = name.rsplit_once(".part-Frag").is_some_and(|(_, suffix)| {
+                !suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit())
+            });
+            if name == ".lock" || name.ends_with(".part") || name.ends_with(".ytdl") || fragment {
+                continue;
+            }
+            let kind = entry.file_type()?;
+            if kind.is_file() || kind.is_symlink() {
+                fs::remove_file(entry.path())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn publish(&self, path: PathBuf) -> Result<PathBuf> {
+        let path = if path.is_absolute() {
+            path
+        } else {
+            self.directory.join(path)
+        };
+        let path = path
+            .canonicalize()
+            .context("The reported output file does not exist.")?;
+        if !path.is_file() || path.parent() != Some(self.directory.as_path()) {
+            bail!("yt-dlp reported an output outside its working folder.");
+        }
+        let destination = self.destination.join(path.file_name().unwrap());
+        let source_c = std::ffi::CString::new(path.as_os_str().as_bytes())?;
+        let destination_c = std::ffi::CString::new(destination.as_os_str().as_bytes())?;
+        // Same-filesystem atomic publication, including on filesystems without
+        // hard links. Never replace an existing file, even across app instances.
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                source_c.as_ptr(),
+                libc::AT_FDCWD,
+                destination_c.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        if result == -1 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                bail!(
+                    "A file named {} already exists. Choose another folder or rename the existing file.",
+                    destination.file_name().unwrap().to_string_lossy()
+                );
+            }
+            return Err(error)
+                .context("Could not move the completed file safely into the destination.");
+        }
+        Ok(destination)
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        if let Err(error) = self.clean_incomplete_outputs() {
+            eprintln!("Could not clean working files: {error}");
+        }
+        // Keep the lock inode. Deleting it would let two processes acquire
+        // different locks for the same directory.
+    }
 }
 
 fn collect(reader: impl Read, inspect: bool, send: &Sender<Event>, collected: &Mutex<Collected>) {
@@ -351,23 +487,11 @@ fn run(
     send: &Sender<Event>,
 ) -> Result<Event> {
     let args = operation.args()?;
-    let destination = match &operation {
-        Operation::Download { destination, .. } => {
-            if !destination.is_dir() {
-                bail!("Choose an existing destination folder.");
-            }
-            Some(
-                destination
-                    .canonicalize()
-                    .context("Could not access the destination folder.")?,
-            )
-        }
-        _ => None,
-    };
+    let staging = Staging::new(&operation)?;
     let inspect = matches!(operation, Operation::Inspect { .. });
     let mut command = Command::new(executable);
-    if let Some(destination) = &destination {
-        command.current_dir(destination);
+    if let Some(staging) = &staging {
+        command.current_dir(&staging.directory);
     }
     command
         .args(args)
@@ -378,6 +502,19 @@ fn run(
     {
         use std::os::unix::process::CommandExt;
         command.process_group(0);
+        if let Some(staging) = &staging {
+            let fd = staging._lock.as_raw_fd();
+            // Keep the flock alive in yt-dlp if the GUI crashes. Clear only
+            // this child's copy of CLOEXEC; never change the parent's flags.
+            unsafe {
+                command.pre_exec(move || {
+                    if libc::fcntl(fd, libc::F_SETFD, 0) == -1 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+        }
     }
     let mut child = {
         let mut pid = control.pid.lock().unwrap();
@@ -451,18 +588,10 @@ fn run(
         let path = data
             .path
             .context("yt-dlp exited successfully but did not report an output file.")?;
-        let path = if path.is_absolute() {
-            path
-        } else {
-            destination.unwrap().join(path)
-        };
-        if !path.is_file() {
-            bail!(
-                "The reported output file does not exist: {}",
-                path.display()
-            );
+        if control.cancelled.load(Ordering::SeqCst) {
+            return Ok(Event::Cancelled);
         }
-        Ok(Event::Completed(path))
+        Ok(Event::Completed(staging.as_ref().unwrap().publish(path)?))
     }
 }
 
