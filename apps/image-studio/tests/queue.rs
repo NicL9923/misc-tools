@@ -22,6 +22,9 @@ struct Backend {
     unrelated: bool,
     offline: bool,
     reject_prompt: bool,
+    extra_models: bool,
+    hold_view: bool,
+    view_started: bool,
 }
 struct Server {
     url: String,
@@ -103,7 +106,23 @@ fn serve(mut stream: TcpStream, state: &Mutex<Backend>) {
     }
     let response = match path {
         "/object_info" => {
-            json!({"UNETLoader":{"input":{"required":{"unet_name":[["flux-2-klein-4b-fp8.safetensors","z_image_turbo_bf16.safetensors"]]}}},"CLIPLoader":{"input":{"required":{"clip_name":[["qwen_3_4b.safetensors"]]}}},"VAELoader":{"input":{"required":{"vae_name":[["ae.safetensors","flux2-vae.safetensors"]]}}}})
+            let mut unets = vec![
+                "flux-2-klein-4b-fp8.safetensors",
+                "z_image_turbo_bf16.safetensors",
+            ];
+            let mut encoders = vec!["qwen_3_4b.safetensors"];
+            if b.extra_models {
+                unets.extend([
+                    "ideogram4_nvfp4_mixed.safetensors",
+                    "ideogram4_unconditional_nvfp4_mixed.safetensors",
+                    "flux2-dev-nvfp4.safetensors",
+                ]);
+                encoders.extend([
+                    "qwen3vl_8b_nvfp4.safetensors",
+                    "mistral_3_small_flux2_fp4_mixed.safetensors",
+                ]);
+            }
+            json!({"UNETLoader":{"input":{"required":{"unet_name":[unets]}}},"CLIPLoader":{"input":{"required":{"clip_name":[encoders]}}},"VAELoader":{"input":{"required":{"vae_name":[["ae.safetensors","flux2-vae.safetensors"]]}}}})
         }
         "/queue" if line.starts_with("POST") => {
             for id in body["delete"].as_array().unwrap() {
@@ -140,6 +159,9 @@ fn serve(mut stream: TcpStream, state: &Mutex<Backend>) {
                 .unwrap_or(json!({}))
         }
         p if p.starts_with("/view?") => {
+            b.view_started = true;
+            drop(b);
+            wait(|| !state.lock().unwrap().hold_view);
             let png = b"\x89PNG\r\n\x1a\nfixture";
             write!(
                 stream,
@@ -177,6 +199,34 @@ fn wait(check: impl Fn() -> bool) {
         assert!(start.elapsed() < Duration::from_secs(8), "timed out");
         thread::sleep(Duration::from_millis(20));
     }
+}
+#[test]
+fn cancellation_during_image_download_discards_the_result() {
+    let server = Server::start();
+    server.state.lock().unwrap().hold_view = true;
+    let dir = TempDir::new().unwrap();
+    let engine = Engine::open(config(&dir, &server)).unwrap();
+    engine.enqueue(batch(vec![Model::Klein4B], 1)).unwrap();
+    wait(|| server.state.lock().unwrap().submissions.len() == 1);
+    let job = engine.snapshot().jobs[0].clone();
+    server.complete(job.prompt_id.as_ref().unwrap());
+    wait(|| server.state.lock().unwrap().view_started);
+    engine.cancel(&job.id).unwrap();
+    server.state.lock().unwrap().hold_view = false;
+    wait(|| engine.snapshot().jobs[0].status != JobStatus::Generating);
+    let finished = engine.snapshot().jobs[0].clone();
+    assert_eq!(finished.status, JobStatus::Cancelled);
+    assert!(finished.output.is_none());
+    assert_eq!(
+        std::fs::read_dir(dir.path().join("outputs"))
+            .unwrap()
+            .count(),
+        0
+    );
+    let saved: Value =
+        serde_json::from_slice(&std::fs::read(dir.path().join("state/queue.json")).unwrap())
+            .unwrap();
+    assert_eq!(saved["jobs"][0]["status"], "Cancelled");
 }
 #[test]
 fn batches_are_sequential_grouped_and_publish_metadata() {
@@ -350,4 +400,79 @@ fn rejected_workflow_keeps_bounded_actionable_error_without_resubmission() {
     let state = server.state.lock().unwrap();
     assert_eq!(state.submissions.len(), 1);
     assert!(state.pending.is_empty());
+}
+
+#[test]
+fn large_models_wait_for_install_then_generate_with_reproducible_recipes() {
+    let server = Server::start();
+    let dir = TempDir::new().unwrap();
+    let engine = Engine::open(config(&dir, &server)).unwrap();
+    let mut request = batch(vec![Model::Ideogram4Quality, Model::Flux2Dev], 1);
+    request.prompt = "A sign reading \"Howdy\"\nunder an oak tree".into();
+    request.width = 832;
+    request.height = 1216;
+    engine.enqueue(request.clone()).unwrap();
+    wait(|| engine.snapshot().models.len() == 4);
+    assert!(
+        !engine
+            .snapshot()
+            .models
+            .iter()
+            .find(|m| m.model == Model::Ideogram4Quality)
+            .unwrap()
+            .available
+    );
+    assert!(server.state.lock().unwrap().submissions.is_empty());
+    server.state.lock().unwrap().extra_models = true;
+    engine.refresh_models().unwrap();
+    for index in 0..2 {
+        wait(|| server.state.lock().unwrap().submissions.len() == index + 1);
+        let job = engine.snapshot().jobs[index].clone();
+        let graph = job.workflow.as_ref().unwrap();
+        let nodes: Vec<_> = graph.as_object().unwrap().values().collect();
+        let text = nodes
+            .iter()
+            .find(|n| n["class_type"] == "CLIPTextEncode")
+            .unwrap()["inputs"]["text"]
+            .as_str()
+            .unwrap();
+        if index == 0 {
+            let caption: Value = serde_json::from_str(text).unwrap();
+            assert_eq!(caption["high_level_description"], request.prompt);
+            let scheduler = nodes
+                .iter()
+                .find(|n| n["class_type"] == "Ideogram4Scheduler")
+                .unwrap();
+            assert_eq!(scheduler["inputs"]["steps"], 48);
+            assert_eq!(scheduler["inputs"]["width"], request.width);
+            assert_eq!(scheduler["inputs"]["height"], request.height);
+            assert!(
+                nodes
+                    .iter()
+                    .any(|n| n["class_type"] == "SplitSigmas" && n["inputs"]["step"] == 45)
+            );
+        } else {
+            assert_eq!(text, request.prompt);
+            assert!(
+                nodes
+                    .iter()
+                    .any(|n| n["inputs"]["unet_name"] == "flux2-dev-nvfp4.safetensors")
+            );
+        }
+        assert!(
+            nodes
+                .iter()
+                .any(|n| n["class_type"] == "RandomNoise" && n["inputs"]["noise_seed"] == job.seed)
+        );
+        server.complete(job.prompt_id.as_ref().unwrap());
+        wait(|| engine.snapshot().jobs[index].status == JobStatus::Completed);
+        let output = engine.snapshot().jobs[index].output.clone().unwrap();
+        let metadata: Value =
+            serde_json::from_slice(&std::fs::read(output.with_extension("json")).unwrap()).unwrap();
+        assert_eq!(metadata["workflow"], *graph);
+        assert_eq!(
+            metadata["model_files"].as_array().unwrap().len(),
+            if index == 0 { 4 } else { 3 }
+        );
+    }
 }

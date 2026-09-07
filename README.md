@@ -5,7 +5,8 @@ Custom utilities by Nicolas, licensed under MIT.
 ## Image Studio
 
 A Rust/GPUI app for generating images locally through ComfyUI. Choose FLUX.2
-Klein 4B, Z-Image-Turbo, or both, and generate several variations from one prompt.
+Klein 4B, Z-Image-Turbo, Ideogram 4.0 Quality, or the full FLUX.2 Dev 32B model,
+and generate several variations from one prompt.
 Jobs run one at a time in model groups. A gallery groups results by model and
 supports favorites, fresh-seed regeneration, full-size viewing, and exporting copies.
 
@@ -40,10 +41,24 @@ The service listens only on `127.0.0.1:8190`, with cloud API nodes and custom no
 turned off. Generation runs offline after installation. See
 [the runtime notes](apps/image-studio/RUNTIME.md) for dependencies and troubleshooting.
 
-The first version supports text-to-image with these two recipes. Image editing,
+Ideogram and FLUX.2 Dev are optional larger downloads using NVFP4 quantization
+for supported NVIDIA Blackwell GPUs, including the RTX 5070 Ti:
+
+```bash
+./.agents/tools/setup-image-runtime.py --models ideogram flux-dev --list
+./.agents/tools/setup-image-runtime.py --models ideogram flux-dev
+```
+
+These add about 51 GB of weights to the default installation. FLUX.2 Dev retains
+the full 32B model and uses disk offloading on a 16 GB GPU. Ideogram uses its
+48-step Quality preset. Both use non-commercial model licenses; check the
+[runtime notes](apps/image-studio/RUNTIME.md) before commercial use.
+
+The first version supports text-to-image with these four recipes. Image editing,
 video generation, and installing arbitrary models through the GUI are outside
 this version. ComfyUI remains a separate GPL-licensed dependency; our app code is
-MIT, and the selected model releases are Apache 2.0.
+MIT. The default Klein and Z-Image model releases are Apache 2.0; the optional
+Ideogram and FLUX.2 Dev weights retain their own licenses.
 
 ## YouTube downloader
 

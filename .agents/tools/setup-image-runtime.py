@@ -27,11 +27,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--list', action='store_true', help='Show pinned downloads and disk requirements without installing')
     parser.add_argument('--skip-models', action='store_true', help='Install runtime only; download models on a later run')
+    parser.add_argument('--models', nargs='+', choices=['klein', 'z-image', 'ideogram', 'flux-dev', 'all'], default=['klein', 'z-image'], help='Models to install; the larger non-commercial models are opt-in')
     args = parser.parse_args()
     manifest = json.loads(MANIFEST.read_text())
-    for item in manifest['files']:
+    selected = list(manifest['models']) if 'all' in args.models else args.models
+    names = {name for model in selected for name in manifest['models'][model]}
+    files = [item for item in manifest['files'] if item['filename'] in names]
+    if any(model in selected for model in ['ideogram', 'flux-dev']):
+        print('Ideogram 4 and FLUX.2 Dev weights have non-commercial model licenses. See apps/image-studio/RUNTIME.md. NVFP4 requires a supported NVIDIA Blackwell GPU.')
+    for item in files:
         print(f"{item['filename']}: {item['bytes'] / 1e9:.2f} GB", flush=True)
-    print(f"Model total: {sum(f['bytes'] for f in manifest['files']) / 1e9:.2f} GB; allow another 12 GB for Python/CUDA.")
+    print(f"Model total: {sum(f['bytes'] for f in files) / 1e9:.2f} GB; allow another 12 GB for Python/CUDA.")
     if args.list:
         return
     ROOT.mkdir(parents=True, exist_ok=True)
@@ -70,7 +76,7 @@ def main():
     run(pip, 'install', 'torch==2.14.0', 'torchvision==0.29.0', 'torchaudio==2.11.0', '--index-url', 'https://download.pytorch.org/whl/cu130')
     run(pip, 'install', '-r', checkout / 'requirements.txt')
     if not args.skip_models:
-        for item in manifest['files']:
+        for item in files:
             target = checkout / 'models' / item['directory'] / item['filename']
             target.parent.mkdir(parents=True, exist_ok=True)
             if target.exists():

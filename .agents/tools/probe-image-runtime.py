@@ -20,7 +20,7 @@ def api(path, data=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('models', nargs='*', choices=['klein', 'z-image'], default=['klein', 'z-image'])
+    parser.add_argument('models', nargs='*', choices=['klein', 'z-image', 'ideogram', 'flux-dev'], default=['klein', 'z-image'])
     args = parser.parse_args()
     queue = api('/queue')
     if queue['queue_running'] or queue['queue_pending']:

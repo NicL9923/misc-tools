@@ -226,18 +226,20 @@ impl Studio {
     ) -> impl IntoElement + use<> {
         let muted = cx.theme().muted_foreground;
         let mut models = v_flex().gap_2();
-        for model in [Model::Klein4B, Model::ZImageTurbo] {
+        for model in Model::ALL {
             let selected = self.selected.contains(&model);
             let status = snapshot.and_then(|s| s.models.iter().find(|m| m.model == model));
             let available = status.is_some_and(|status| status.available);
             let subtitle = match model {
                 Model::Klein4B => "Fast, general-purpose generation",
                 Model::ZImageTurbo => "Photorealism and prompt exploration",
+                Model::Ideogram4Quality => "48-step Quality · NVFP4 · Blackwell GPU",
+                Model::Flux2Dev => "Full 32B · NVFP4 · slower, uses disk offload",
             };
             models = models.child(
                 v_flex()
-                    .gap_1()
-                    .p_3()
+                    .gap_0()
+                    .p_2()
                     .rounded_lg()
                     .border_1()
                     .border_color(if selected {
@@ -270,9 +272,9 @@ impl Studio {
                                 muted
                             })
                             .child(if available {
-                                "Installed · Apache 2.0"
+                                format!("Installed · {}", model.license())
                             } else {
-                                "Needs setup · open Engine & models"
+                                "Needs setup · open Engine & models".to_owned()
                             }),
                     ),
             );
@@ -645,11 +647,11 @@ impl Studio {
         if jobs.is_empty() {
             return gallery.child(v_flex().w_full().min_h(px(300.)).justify_center().items_center().gap_3()
                 .child(div().text_lg().child(if self.favorites_only { "No favorites yet" } else { "Your next idea starts here" }))
-                .child(div().max_w(px(350.)).text_center().text_sm().text_color(muted).child(if self.favorites_only { "Favorite an image to keep it here." } else { "Write a prompt and choose one or both models. Images appear here as they finish." })));
+                .child(div().max_w(px(350.)).text_center().text_sm().text_color(muted).child(if self.favorites_only { "Favorite an image to keep it here." } else { "Write a prompt and choose your models. Images appear here as they finish." })));
         }
         let columns = if width >= 620. { 2. } else { 1. };
         let card_width = px(((width - (columns - 1.) * 16.) / columns).max(240.));
-        for model in [Model::Klein4B, Model::ZImageTurbo] {
+        for model in Model::ALL {
             let group: Vec<_> = jobs.iter().filter(|job| job.model == model).collect();
             if group.is_empty() {
                 continue;
@@ -731,7 +733,7 @@ impl Render for Studio {
                         .on_click(cx.listener(|this, _, _, cx| this.start_backend(cx))))
                     .child(Button::new("refresh-models").label("Refresh models")
                         .on_click(cx.listener(|this, _, _, cx| { if let Some(engine) = &this.engine { let result = engine.refresh_models(); this.result(result, cx); } }))))
-                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("First-time setup: run .agents/tools/setup-image-runtime.py from the misc-tools checkout. This downloads the models and installs the local engine.")));
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Setup from the misc-tools checkout: .agents/tools/setup-image-runtime.py. Add --models ideogram flux-dev for the larger NVFP4 models. These require a supported Blackwell GPU and have non-commercial model licenses.")));
         }
         if let Some(error) = &self.error {
             content = content.child(

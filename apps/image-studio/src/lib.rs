@@ -33,18 +33,45 @@ impl std::error::Error for BackendHttpError {}
 pub enum Model {
     Klein4B,
     ZImageTurbo,
+    Ideogram4Quality,
+    Flux2Dev,
 }
 impl Model {
+    pub const ALL: [Self; 4] = [
+        Self::Klein4B,
+        Self::ZImageTurbo,
+        Self::Ideogram4Quality,
+        Self::Flux2Dev,
+    ];
+
     pub fn id(self) -> &'static str {
         match self {
             Self::Klein4B => "klein-4b",
             Self::ZImageTurbo => "z-image-turbo",
+            Self::Ideogram4Quality => "ideogram-4-quality",
+            Self::Flux2Dev => "flux-2-dev",
         }
     }
     pub fn label(self) -> &'static str {
         match self {
             Self::Klein4B => "FLUX.2 Klein 4B",
             Self::ZImageTurbo => "Z-Image-Turbo",
+            Self::Ideogram4Quality => "Ideogram 4.0 Quality",
+            Self::Flux2Dev => "FLUX.2 Dev 32B",
+        }
+    }
+    pub fn license(self) -> &'static str {
+        match self {
+            Self::Klein4B | Self::ZImageTurbo => "Apache 2.0",
+            Self::Ideogram4Quality | Self::Flux2Dev => "Non-commercial model license",
+        }
+    }
+    pub fn recipe(self) -> &'static str {
+        match self {
+            Self::Klein4B => "klein",
+            Self::ZImageTurbo => "z-image",
+            Self::Ideogram4Quality => "ideogram",
+            Self::Flux2Dev => "flux-dev",
         }
     }
 }
@@ -617,17 +644,23 @@ impl Shared {
             .config
             .output_dir
             .join(format!("{}-{}.png", job.model.id(), job.id));
-        let temp = path.with_extension("png.tmp");
-        fs::write(&temp, &bytes)?;
-        File::open(&temp)?.sync_all()?;
-        fs::rename(&temp, &path)?;
-        let mut metadata = serde_json::to_value(job)?;
-        metadata["output"] = json!(path);
-        metadata["status"] = json!("Completed");
-        metadata["model_files"] = json!(workflow::files(job.model));
-        atomic_json(&path.with_extension("json"), &metadata)?;
         self.update(|s| {
             let j = find_job(s, &job.id)?;
+            // Cancellation can arrive during either HTTP request. Serialize the
+            // final check and file publication with queue updates, after download.
+            if j.cancel_requested {
+                j.status = JobStatus::Cancelled;
+                return Ok(());
+            }
+            let temp = path.with_extension("png.tmp");
+            fs::write(&temp, &bytes)?;
+            File::open(&temp)?.sync_all()?;
+            fs::rename(&temp, &path)?;
+            let mut metadata = serde_json::to_value(&*j)?;
+            metadata["output"] = json!(path);
+            metadata["status"] = json!("Completed");
+            metadata["model_files"] = json!(workflow::files(j.model));
+            atomic_json(&path.with_extension("json"), &metadata)?;
             j.output = Some(path);
             j.status = JobStatus::Completed;
             j.error = None;

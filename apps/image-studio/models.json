@@ -45,6 +45,74 @@
       "filename": "flux2-vae.safetensors",
       "bytes": 336211292,
       "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
+    },
+    {
+      "repo": "Comfy-Org/Ideogram-4",
+      "revision": "bbee2ab2b14b2b5223448d12d6e31e5f9cec0546",
+      "path": "diffusion_models/ideogram4_nvfp4_mixed.safetensors",
+      "directory": "diffusion_models",
+      "filename": "ideogram4_nvfp4_mixed.safetensors",
+      "bytes": 5490550037,
+      "sha256": "e7923b4b0a1129ae5afcc09e63046185688c8b09eb9a1a748cccdbde5d381609"
+    },
+    {
+      "repo": "Comfy-Org/Ideogram-4",
+      "revision": "bbee2ab2b14b2b5223448d12d6e31e5f9cec0546",
+      "path": "diffusion_models/ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "directory": "diffusion_models",
+      "filename": "ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "bytes": 5490550037,
+      "sha256": "639e37bd1dd7ee35e23c7cfccf93a518ddc7f4587818956ec42b31e659fd6ac0"
+    },
+    {
+      "repo": "Comfy-Org/Ideogram-4",
+      "revision": "bbee2ab2b14b2b5223448d12d6e31e5f9cec0546",
+      "path": "text_encoders/qwen3vl_8b_nvfp4.safetensors",
+      "directory": "text_encoders",
+      "filename": "qwen3vl_8b_nvfp4.safetensors",
+      "bytes": 6305221764,
+      "sha256": "e462e9e0c3b9313ae17f82040d7c77beb92d7aef3e40692d7803228dab7c3b98"
+    },
+    {
+      "repo": "black-forest-labs/FLUX.2-dev-NVFP4",
+      "revision": "142b87e70bc3006937b7093d89ff287b5f59f071",
+      "path": "flux2-dev-nvfp4.safetensors",
+      "directory": "diffusion_models",
+      "filename": "flux2-dev-nvfp4.safetensors",
+      "bytes": 21035602376,
+      "sha256": "be024af73a82d193b1c5aca4d2f7cd1a3fb361f4b621bb214b9ee422b1e04a5e"
+    },
+    {
+      "repo": "Comfy-Org/flux2-dev",
+      "revision": "ab9055628ea245000e610f2aa2c96f4746093546",
+      "path": "split_files/text_encoders/mistral_3_small_flux2_fp4_mixed.safetensors",
+      "directory": "text_encoders",
+      "filename": "mistral_3_small_flux2_fp4_mixed.safetensors",
+      "bytes": 12275678071,
+      "sha256": "1ee1ff334d78228d73049ef0ee4fcd21c1700536b5a45c06547af057f92463a7"
     }
-  ]
+  ],
+  "models": {
+    "klein": [
+      "flux-2-klein-4b-fp8.safetensors",
+      "qwen_3_4b.safetensors",
+      "flux2-vae.safetensors"
+    ],
+    "z-image": [
+      "z_image_turbo_bf16.safetensors",
+      "qwen_3_4b.safetensors",
+      "ae.safetensors"
+    ],
+    "ideogram": [
+      "ideogram4_nvfp4_mixed.safetensors",
+      "ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "qwen3vl_8b_nvfp4.safetensors",
+      "flux2-vae.safetensors"
+    ],
+    "flux-dev": [
+      "flux2-dev-nvfp4.safetensors",
+      "mistral_3_small_flux2_fp4_mixed.safetensors",
+      "flux2-vae.safetensors"
+    ]
+  }
 }

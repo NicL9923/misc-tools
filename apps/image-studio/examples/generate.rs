@@ -7,15 +7,17 @@ use std::{
 };
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
-    let directory = PathBuf::from(
-        args.next()
-            .context("Usage: generate DIRECTORY klein|z-image|both COUNT PROMPT")?,
-    );
+    let directory = PathBuf::from(args.next().context(
+        "Usage: generate DIRECTORY klein|z-image|ideogram|flux-dev|both|all COUNT PROMPT",
+    )?);
     let models = match args.next().as_deref() {
         Some("klein") => vec![Model::Klein4B],
         Some("z-image") => vec![Model::ZImageTurbo],
+        Some("ideogram") => vec![Model::Ideogram4Quality],
+        Some("flux-dev") => vec![Model::Flux2Dev],
+        Some("all") => Model::ALL.to_vec(),
         Some("both") => vec![Model::Klein4B, Model::ZImageTurbo],
-        _ => bail!("Choose klein, z-image, or both"),
+        _ => bail!("Choose klein, z-image, ideogram, flux-dev, both, or all"),
     };
     let images_per_model = args.next().context("Missing count")?.parse()?;
     let prompt = args.collect::<Vec<_>>().join(" ");

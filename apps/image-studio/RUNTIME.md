@@ -4,8 +4,9 @@ Image Studio uses a separate ComfyUI process on `http://127.0.0.1:8190`.
 It runs installed models on the local NVIDIA GPU; API/cloud nodes and custom nodes
 are disabled. The Rust app submits one image at a time and owns the persistent
 queue and gallery. ComfyUI is GPL-3.0; its separately installed source is not
-relicensed by this MIT project. Model licenses are Apache-2.0; see their upstream
-repositories linked in `models.json`.
+relicensed by this MIT project. The default Klein and Z-Image weights are
+Apache-2.0. Optional Ideogram 4 and FLUX.2 Dev weights have non-commercial model
+licenses. Their upstream repositories are linked below and pinned in `models.json`.
 
 ## Install on Fedora with an NVIDIA GPU
 
@@ -26,6 +27,31 @@ Use `--skip-models` to install only the runtime. Rerun without that flag to inst
 the pinned model files. Files download sequentially to resumable `.part` files and
 are SHA-256 verified before being made available to ComfyUI. Existing models with
 unexpected hashes are preserved and reported rather than overwritten.
+
+### Optional larger models
+
+```sh
+python3 .agents/tools/setup-image-runtime.py --models ideogram flux-dev --list
+python3 .agents/tools/setup-image-runtime.py --models ideogram flux-dev
+```
+
+This adds about 50.60 GB beyond the default models and shares the existing FLUX.2
+VAE. `--models all` installs all four recipes; without `--models`, setup still
+installs only Klein and Z-Image. These additional recipes use NVFP4 weights and
+require a supported NVIDIA Blackwell GPU and NVFP4 kernels. They are not portable
+presets for older NVIDIA cards, AMD, or Apple GPUs.
+
+FLUX.2 Dev retains the full 32B generator in a 21.04 GB NVFP4 file, with a separate
+12.28 GB mixed FP4 Mistral encoder. It exceeds the 16 GB GPU's capacity and relies
+on NVMe-backed offloading. Ideogram uses two 5.49 GB NVFP4 generators and a 6.31 GB
+Qwen3-VL encoder. Start with one 1024px image per model. Large batches still run
+sequentially, but these recipes do substantially more work per image than Klein
+or Z-Image.
+
+The app's MIT license does not replace either model's license. Review the
+[Ideogram model license](https://huggingface.co/ideogram-ai/ideogram-4-fp8)
+and [FLUX.2 Dev license and usage policy](https://huggingface.co/black-forest-labs/FLUX.2-dev-NVFP4).
+These weights are downloaded separately, never bundled in the app or repository.
 
 The install root is `~/.local/opt/misc-tools-comfyui`. The user service starts on
 demand, not at login. It reserves 2.5 GB VRAM for the desktop, uses dynamic VRAM with `--fast-disk`
@@ -52,6 +78,20 @@ recipes, flattened from the official ComfyUI templates at commit
 res_multistep steps, the simple scheduler, CFG 1, and AuraFlow shift 3. Both share
 the Qwen3 4B text encoder, but use their own CLIP mode and VAE.
 
+`workflows/flux-dev.json` uses BFL's full NVFP4 Dev weights with 50 Euler steps,
+Flux2Scheduler, distilled guidance 4, and CFG 1. It does not apply a Turbo LoRA.
+`workflows/ideogram.json` implements `V4_QUALITY_48`: 45 Euler steps with dual-model
+guidance 7, followed by three steps with guidance 3, using the same latent and
+noise schedule. Its schedule uses mu 0 and std 1.5. Unconditional inference is
+image-only. All nodes are built into the pinned ComfyUI runtime.
+
+Ideogram was trained on structured JSON captions. Image Studio wraps ordinary
+text in a minimal caption without inventing scene details; a JSON object with a
+`high_level_description` string passes through unchanged. Detailed structured
+captions can improve layout control. There is no hosted Magic Prompt call or
+additional prompt-expansion model. The original prompt and exact submitted
+workflow are both retained in each image's metadata.
+
 The backend commit and each model repository revision, size, and SHA-256 are in
 `models.json`. Python dependencies follow that ComfyUI revision, with PyTorch
 2.14.0 CUDA 13.0 pinned; the entire transitive Python dependency set is not locked.
@@ -62,6 +102,11 @@ Sources:
 - [ComfyUI source](https://github.com/Comfy-Org/ComfyUI)
 - [Klein 4B FP8 weights](https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8)
 - [Z-Image-Turbo components](https://huggingface.co/Comfy-Org/z_image_turbo)
+- [BFL full FLUX.2 Dev NVFP4 weights](https://huggingface.co/black-forest-labs/FLUX.2-dev-NVFP4)
+- [ComfyUI FLUX.2 Dev encoders](https://huggingface.co/Comfy-Org/flux2-dev)
+- [Ideogram Quality sampler parameters](https://github.com/ideogram-oss/ideogram4/blob/main/docs/inference.md)
+- [ComfyUI Ideogram weights](https://huggingface.co/Comfy-Org/Ideogram-4)
+- [Official Ideogram workflow](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_ideogram4_t2i.json)
 
 ## Verified locally
 

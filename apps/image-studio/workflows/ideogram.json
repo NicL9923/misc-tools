@@ -1,0 +1,193 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ideogram4_nvfp4_mixed.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_nvfp4.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "{\"high_level_description\": \"A red barn in a Texas meadow at sunrise, photography\", \"compositional_deconstruction\": {\"background\": \"A Texas meadow at sunrise\", \"elements\": []}}"
+    }
+  },
+  "5": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "6": {
+    "class_type": "DualModelGuider",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "model_negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "cfg": 7.0
+    }
+  },
+  "7": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 42
+    }
+  },
+  "8": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "9": {
+    "class_type": "Ideogram4Scheduler",
+    "inputs": {
+      "steps": 48,
+      "width": 1024,
+      "height": 1024,
+      "mu": 0.0,
+      "std": 1.5
+    }
+  },
+  "10": {
+    "class_type": "EmptyFlux2LatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "11": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "9",
+        0
+      ],
+      "step": 45
+    }
+  },
+  "12": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "7",
+        0
+      ],
+      "guider": [
+        "6",
+        0
+      ],
+      "sampler": [
+        "8",
+        0
+      ],
+      "sigmas": [
+        "11",
+        0
+      ],
+      "latent_image": [
+        "10",
+        0
+      ]
+    }
+  },
+  "13": {
+    "class_type": "DisableNoise",
+    "inputs": {}
+  },
+  "14": {
+    "class_type": "DualModelGuider",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "model_negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "cfg": 3.0
+    }
+  },
+  "15": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "13",
+        0
+      ],
+      "guider": [
+        "14",
+        0
+      ],
+      "sampler": [
+        "8",
+        0
+      ],
+      "sigmas": [
+        "11",
+        1
+      ],
+      "latent_image": [
+        "12",
+        0
+      ]
+    }
+  },
+  "16": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "15",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "17": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "16",
+        0
+      ],
+      "filename_prefix": "image-studio/ideogram"
+    }
+  }
+}
