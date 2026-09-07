@@ -10,7 +10,7 @@ licenses. Their upstream repositories are linked below and pinned in `models.jso
 
 ## Install on Fedora with an NVIDIA GPU
 
-Requires Fedora x86_64, Python 3.14, Git, curl, dnf download, rpm2cpio, cpio, GCC,
+Requires Fedora x86_64, Python 3.14, Git, dnf download, rpm2cpio, cpio, GCC,
 working NVIDIA drivers, and roughly 40 GB free disk.
 Python/CUDA packages live in a dedicated virtual environment; no sudo is needed.
 Missing Python development headers are extracted from Fedora’s matching RPM into
@@ -24,8 +24,9 @@ systemctl --user start misc-tools-comfyui.service
 ```
 
 Use `--skip-models` to install only the runtime. Rerun without that flag to install
-the pinned model files. Files download sequentially to resumable `.part` files and
-are SHA-256 verified before being made available to ComfyUI. Existing models with
+the pinned model files. Hugging Face's CLI downloads one file at a time with its
+resumable, chunked transport, staging under the runtime's `downloads/` directory.
+Files are SHA-256 verified before being made available to ComfyUI. Existing models with
 unexpected hashes are preserved and reported rather than overwritten.
 
 ### Optional larger models
@@ -85,12 +86,18 @@ guidance 7, followed by three steps with guidance 3, using the same latent and
 noise schedule. Its schedule uses mu 0 and std 1.5. Unconditional inference is
 image-only. All nodes are built into the pinned ComfyUI runtime.
 
-Ideogram was trained on structured JSON captions. Image Studio wraps ordinary
-text in a minimal caption without inventing scene details; a JSON object with a
-`high_level_description` string passes through unchanged. Detailed structured
-captions can improve layout control. There is no hosted Magic Prompt call or
-additional prompt-expansion model. The original prompt and exact submitted
-workflow are both retained in each image's metadata.
+Ideogram was trained on structured JSON captions, including a specific field
+order. Image Studio reuses its installed Qwen3-VL encoder to convert ordinary
+prompts locally into captions with scene, style, layout, and lettering details.
+A JSON object with a `high_level_description` string bypasses that conversion.
+There is no hosted Magic Prompt call or additional model download.
+
+Metadata retains the original prompt, submitted workflow, and `resolved_caption`
+as an exact string, preserving JSON field order. Malformed or truncated generated
+captions fail the job instead of publishing its image. This validation occurs
+after ComfyUI finishes the graph. Ideogram can still return a safety-filter
+placeholder; the initial minimal-caption experiment did so for a harmless poster.
+Complete structured captions produced real images in the subsequent checks.
 
 The backend commit and each model repository revision, size, and SHA-256 are in
 `models.json`. Python dependencies follow that ComfyUI revision, with PyTorch
@@ -116,3 +123,16 @@ produced real 1024×1024 PNGs. Klein took 4.18 seconds and Z-Image-Turbo took
 and API polling. The initial RAM-backed configuration thrashed during Z-Image;
 `--fast-disk` resolved that, so it is part of the installed launcher. These are
 single-run observations, not a controlled benchmark.
+
+The full NVFP4 FLUX.2 Dev recipe generated a 1024px travel poster in 77.00 seconds.
+The final installed Ideogram recipe generated the same request in 55.21 seconds,
+including local caption conversion. Both results were visually inspected. Ideogram
+rendered its poster sideways; local caption expansion and composition remain
+variable, so these are working model experiments, not guarantees of prompt fidelity.
+Earlier complete-caption Ideogram checks took 52–54 seconds. The malformed
+minimal-caption attempt returned a filter placeholder and is not counted as a
+successful image. Sampling during these checks recorded at most 15,577 MiB total
+GPU use, including the desktop, and about 14.0 GiB ComfyUI host memory. The existing
+service limits were unchanged. FLUX reconnected across an app restart without
+duplicate submission. These are single-machine observations at 1024px; larger
+canvases have not been validated for the new models.

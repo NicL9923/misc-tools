@@ -83,13 +83,17 @@ def main():
                 if digest(target) != item['sha256']:
                     raise SystemExit(f'Existing model checksum differs: {target}. Move it aside before retrying.')
                 continue
-            partial = target.with_name(target.name + '.part')
-            url = f"https://huggingface.co/{item['repo']}/resolve/{item['revision']}/{item['path']}"
+            # Hugging Face's Xet transport downloads large files in parallel chunks.
+            # Stage outside ComfyUI's model folders until our pinned hash verifies.
+            staging = ROOT / 'downloads' / item['repo'].replace('/', '--') / item['revision']
+            partial = staging / item['path']
             print(f"Downloading {item['filename']}…", flush=True)
-            run('curl', '--fail', '--location', '--retry', '5', '--speed-time', '60', '--speed-limit', '1024', '--continue-at', '-', '--output', partial, url)
+            run(venv / 'bin/hf', 'download', item['repo'], item['path'], '--revision', item['revision'], '--local-dir', staging)
             if digest(partial) != item['sha256']:
                 raise SystemExit(f'Checksum failed: {partial}. Remove that partial download and retry.')
             partial.rename(target)
+            # Discard an incomplete download left by the previous curl installer.
+            target.with_name(target.name + '.part').unlink(missing_ok=True)
     (ROOT / 'models.json').write_text(MANIFEST.read_text())
     launcher = ROOT / 'run.sh'
     launcher.write_text('#!/bin/sh\nset -eu\nexport C_INCLUDE_PATH=' + shlex.quote(str(private_headers)) + '\ncd ' + shlex.quote(str(checkout)) + '\nexec ' + shlex.quote(str(venv / 'bin/python')) + ' main.py --listen 127.0.0.1 --port 8190 --disable-api-nodes --disable-all-custom-nodes --reserve-vram 2.5 --cache-none --fast-disk\n')

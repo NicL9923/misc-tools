@@ -28,6 +28,9 @@ def main():
     for model in args.models:
         api('/free', {'unload_models': True, 'free_memory': True})
         graph = json.loads((REPO / f'apps/image-studio/workflows/{model}.json').read_text())
+        for node in graph.values():
+            if node['class_type'] == 'TextGenerate':
+                node['inputs']['prompt'] = node['inputs']['prompt'].replace('{aspect_ratio}', '1024:1024').replace('{image_request}', 'A red barn in a Texas meadow at sunrise, photography')
         prompt_id = str(uuid.uuid4())
         started = time.monotonic()
         response = api('/prompt', {'prompt': graph, 'prompt_id': prompt_id, 'client_id': 'image-studio-runtime-probe'})

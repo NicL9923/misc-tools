@@ -615,11 +615,17 @@ impl Shared {
             .and_then(|nodes| nodes.values().find_map(|n| n["images"].as_array()))
             && let Some(image) = images.first()
         {
-            return self.save_result(job, image);
+            let caption = match workflow::resolved_caption(job, entry) {
+                Ok(caption) => caption,
+                Err(error) => {
+                    return self.fail(&job.id, &format!("Invalid Ideogram caption: {error:#}"));
+                }
+            };
+            return self.save_result(job, image, caption);
         }
         self.fail(&job.id, "ComfyUI completed without an output image")
     }
-    fn save_result(&self, job: &Job, image: &Value) -> Result<()> {
+    fn save_result(&self, job: &Job, image: &Value, caption: Option<String>) -> Result<()> {
         let name = image["filename"]
             .as_str()
             .context("Missing image filename")?;
@@ -660,6 +666,9 @@ impl Shared {
             metadata["output"] = json!(path);
             metadata["status"] = json!("Completed");
             metadata["model_files"] = json!(workflow::files(j.model));
+            if let Some(caption) = caption {
+                metadata["resolved_caption"] = json!(caption);
+            }
             atomic_json(&path.with_extension("json"), &metadata)?;
             j.output = Some(path);
             j.status = JobStatus::Completed;

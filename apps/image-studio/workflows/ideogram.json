@@ -27,7 +27,10 @@
         "2",
         0
       ],
-      "text": "{\"high_level_description\": \"A red barn in a Texas meadow at sunrise, photography\", \"compositional_deconstruction\": {\"background\": \"A Texas meadow at sunrise\", \"elements\": []}}"
+      "text": [
+        "19",
+        0
+      ]
     }
   },
   "5": {
@@ -188,6 +191,29 @@
         0
       ],
       "filename_prefix": "image-studio/ideogram"
+    }
+  },
+  "18": {
+    "class_type": "TextGenerate",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "prompt": "Convert the image request into one valid JSON caption. Output minified single-line JSON only, without Markdown. Preserve the exact key order shown. Use this exact structure and value types: {\"high_level_description\":\"specific scene summary including the requested subjects and medium\",\"style_description\":{\"aesthetics\":\"visual style\",\"lighting\":\"lighting description\",\"medium\":\"requested medium\",\"art_style\":\"requested technique\",\"color_palette\":[\"#RRGGBB\"]},\"compositional_deconstruction\":{\"background\":\"setting, ground, sky and distant environment only\",\"elements\":[{\"type\":\"obj\",\"bbox\":[100,100,900,900],\"desc\":\"physical description of one requested foreground subject\"}]}}. Use the photo branch only when the request asks for photography or photorealism. Screenprints, illustrated posters, paintings and drawings use the art_style branch. For photography, style_description must instead use keys in this exact order: aesthetics, lighting, photo, medium, color_palette; photo describes the camera treatment and medium is photograph. Include exactly one of photo and art_style. Give each requested foreground subject its own element, with concrete material, shape and color. Do not repeat these subjects in background. For requested lettering use {\"type\":\"text\",\"bbox\":[100,100,250,900],\"text\":\"exact requested lettering\",\"desc\":\"placement and typography\"}. Bboxes use normalized 0-1000 coordinates [top,left,bottom,right]. Choose appropriate boxes for the requested layout, not the example values. List 3-5 actual hex colors. Preserve every requested subject, style and exact lettering. Do not add unrequested people, objects, labels or logos. Use clear literal descriptions. Keep under 350 words. Target aspect ratio: {aspect_ratio}.\nImage request: {image_request}",
+      "max_length": 1536,
+      "sampling_mode": "off",
+      "thinking": false,
+      "use_default_template": true
+    }
+  },
+  "19": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": [
+        "18",
+        0
+      ]
     }
   }
 }

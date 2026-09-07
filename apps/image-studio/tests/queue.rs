@@ -23,6 +23,7 @@ struct Backend {
     offline: bool,
     reject_prompt: bool,
     extra_models: bool,
+    generated_caption: Option<String>,
     hold_view: bool,
     view_started: bool,
 }
@@ -53,7 +54,15 @@ impl Server {
     fn complete(&self, id: &str) {
         let mut b = self.state.lock().unwrap();
         b.pending.retain(|p| p != id);
-        b.history.insert(id.into(),json!({"status":{"status_str":"success"},"outputs":{"13":{"images":[{"filename":"image.png","type":"output","subfolder":""}]}}}));
+        let mut outputs =
+            json!({"13":{"images":[{"filename":"image.png","type":"output","subfolder":""}]}});
+        if let Some(caption) = &b.generated_caption {
+            outputs["19"] = json!({"text": [caption]});
+        }
+        b.history.insert(
+            id.into(),
+            json!({"status":{"status_str":"success"},"outputs":outputs}),
+        );
     }
 }
 impl Drop for Server {
@@ -425,6 +434,11 @@ fn large_models_wait_for_install_then_generate_with_reproducible_recipes() {
     assert!(server.state.lock().unwrap().submissions.is_empty());
     server.state.lock().unwrap().extra_models = true;
     engine.refresh_models().unwrap();
+    let caption = format!(
+        r#"{{"high_level_description":{},"compositional_deconstruction":{{"background":"A meadow","elements":[]}}}}"#,
+        json!(request.prompt)
+    );
+    server.state.lock().unwrap().generated_caption = Some(caption.clone());
     for index in 0..2 {
         wait(|| server.state.lock().unwrap().submissions.len() == index + 1);
         let job = engine.snapshot().jobs[index].clone();
@@ -434,11 +448,16 @@ fn large_models_wait_for_install_then_generate_with_reproducible_recipes() {
             .iter()
             .find(|n| n["class_type"] == "CLIPTextEncode")
             .unwrap()["inputs"]["text"]
-            .as_str()
-            .unwrap();
+            .clone();
         if index == 0 {
-            let caption: Value = serde_json::from_str(text).unwrap();
-            assert_eq!(caption["high_level_description"], request.prompt);
+            assert_eq!(text, json!(["19", 0]));
+            assert!(nodes.iter().any(|n| {
+                n["class_type"] == "TextGenerate"
+                    && n["inputs"]["prompt"]
+                        .as_str()
+                        .unwrap()
+                        .contains(&request.prompt)
+            }));
             let scheduler = nodes
                 .iter()
                 .find(|n| n["class_type"] == "Ideogram4Scheduler")
@@ -470,9 +489,65 @@ fn large_models_wait_for_install_then_generate_with_reproducible_recipes() {
         let metadata: Value =
             serde_json::from_slice(&std::fs::read(output.with_extension("json")).unwrap()).unwrap();
         assert_eq!(metadata["workflow"], *graph);
+        if index == 0 {
+            assert_eq!(metadata["resolved_caption"], caption);
+        }
         assert_eq!(
             metadata["model_files"].as_array().unwrap().len(),
             if index == 0 { 4 } else { 3 }
         );
     }
+}
+
+#[test]
+fn malformed_generated_captions_fail_and_structured_captions_keep_key_order() {
+    let server = Server::start();
+    server.state.lock().unwrap().extra_models = true;
+    server.state.lock().unwrap().generated_caption = Some("{truncated".into());
+    let dir = TempDir::new().unwrap();
+    let engine = Engine::open(config(&dir, &server)).unwrap();
+    engine
+        .enqueue(batch(vec![Model::Ideogram4Quality], 1))
+        .unwrap();
+    wait(|| server.state.lock().unwrap().submissions.len() == 1);
+    let id = server.state.lock().unwrap().pending[0].clone();
+    server.complete(&id);
+    wait(|| engine.snapshot().jobs[0].status == JobStatus::Failed);
+    assert!(
+        engine.snapshot().jobs[0]
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("caption")
+    );
+    assert!(engine.snapshot().jobs[0].output.is_none());
+    assert_eq!(
+        std::fs::read_dir(dir.path().join("outputs"))
+            .unwrap()
+            .count(),
+        0
+    );
+
+    let caption = r#"{"high_level_description":"A barn","style_description":{"aesthetics":"rustic","lighting":"sunset","medium":"illustration","art_style":"screen print"},"compositional_deconstruction":{"background":"A meadow","elements":[]}}"#;
+    let mut request = batch(vec![Model::Ideogram4Quality], 1);
+    request.prompt = caption.into();
+    server.state.lock().unwrap().generated_caption = None;
+    engine.enqueue(request).unwrap();
+    wait(|| server.state.lock().unwrap().submissions.len() == 2);
+    let job = engine.snapshot().jobs[1].clone();
+    let graph = job.workflow.as_ref().unwrap();
+    assert!(
+        !graph
+            .as_object()
+            .unwrap()
+            .values()
+            .any(|n| n["class_type"] == "TextGenerate")
+    );
+    assert_eq!(graph["19"]["inputs"]["source"], caption);
+    server.complete(job.prompt_id.as_ref().unwrap());
+    wait(|| engine.snapshot().jobs[1].status == JobStatus::Completed);
+    let output = engine.snapshot().jobs[1].output.clone().unwrap();
+    let metadata: Value =
+        serde_json::from_slice(&std::fs::read(output.with_extension("json")).unwrap()).unwrap();
+    assert_eq!(metadata["resolved_caption"], caption);
 }
