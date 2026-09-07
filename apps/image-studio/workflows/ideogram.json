@@ -1,0 +1,219 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ideogram4_nvfp4_mixed.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_nvfp4.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": [
+        "19",
+        0
+      ]
+    }
+  },
+  "5": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "6": {
+    "class_type": "DualModelGuider",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "model_negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "cfg": 7.0
+    }
+  },
+  "7": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 42
+    }
+  },
+  "8": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "9": {
+    "class_type": "Ideogram4Scheduler",
+    "inputs": {
+      "steps": 48,
+      "width": 1024,
+      "height": 1024,
+      "mu": 0.0,
+      "std": 1.5
+    }
+  },
+  "10": {
+    "class_type": "EmptyFlux2LatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "11": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "9",
+        0
+      ],
+      "step": 45
+    }
+  },
+  "12": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "7",
+        0
+      ],
+      "guider": [
+        "6",
+        0
+      ],
+      "sampler": [
+        "8",
+        0
+      ],
+      "sigmas": [
+        "11",
+        0
+      ],
+      "latent_image": [
+        "10",
+        0
+      ]
+    }
+  },
+  "13": {
+    "class_type": "DisableNoise",
+    "inputs": {}
+  },
+  "14": {
+    "class_type": "DualModelGuider",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "model_negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "cfg": 3.0
+    }
+  },
+  "15": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "13",
+        0
+      ],
+      "guider": [
+        "14",
+        0
+      ],
+      "sampler": [
+        "8",
+        0
+      ],
+      "sigmas": [
+        "11",
+        1
+      ],
+      "latent_image": [
+        "12",
+        0
+      ]
+    }
+  },
+  "16": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "15",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "17": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "16",
+        0
+      ],
+      "filename_prefix": "image-studio/ideogram"
+    }
+  },
+  "18": {
+    "class_type": "TextGenerate",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "prompt": "Convert the image request into one valid JSON caption. Output minified single-line JSON only, without Markdown. Preserve the exact key order shown. Use this exact structure and value types: {\"high_level_description\":\"specific scene summary including the requested subjects and medium\",\"style_description\":{\"aesthetics\":\"visual style\",\"lighting\":\"lighting description\",\"medium\":\"requested medium\",\"art_style\":\"requested technique\",\"color_palette\":[\"#RRGGBB\"]},\"compositional_deconstruction\":{\"background\":\"setting, ground, sky and distant environment only\",\"elements\":[{\"type\":\"obj\",\"bbox\":[100,100,900,900],\"desc\":\"physical description of one requested foreground subject\"}]}}. Use the photo branch only when the request asks for photography or photorealism. Screenprints, illustrated posters, paintings and drawings use the art_style branch. For photography, style_description must instead use keys in this exact order: aesthetics, lighting, photo, medium, color_palette; photo describes the camera treatment and medium is photograph. Include exactly one of photo and art_style. Give each requested foreground subject its own element, with concrete material, shape and color. Do not repeat these subjects in background. For requested lettering use {\"type\":\"text\",\"bbox\":[100,100,250,900],\"text\":\"exact requested lettering\",\"desc\":\"placement and typography\"}. Bboxes use normalized 0-1000 coordinates [top,left,bottom,right]. Choose appropriate boxes for the requested layout, not the example values. List 3-5 actual hex colors. Preserve every requested subject, style and exact lettering. Do not add unrequested people, objects, labels or logos. Use clear literal descriptions. Keep under 350 words. Target aspect ratio: {aspect_ratio}.\nImage request: {image_request}",
+      "max_length": 1536,
+      "sampling_mode": "off",
+      "thinking": false,
+      "use_default_template": true
+    }
+  },
+  "19": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": [
+        "18",
+        0
+      ]
+    }
+  }
+}

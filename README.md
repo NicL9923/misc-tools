@@ -2,6 +2,64 @@
 
 Custom utilities by Nicolas, licensed under MIT.
 
+## Image Studio
+
+A Rust/GPUI app for generating images locally through ComfyUI. Choose FLUX.2
+Klein 4B, Z-Image-Turbo, Ideogram 4.0 Quality, or the full FLUX.2 Dev 32B model,
+and generate several variations from one prompt.
+Jobs run one at a time in model groups. A gallery groups results by model and
+supports favorites, fresh-seed regeneration, full-size viewing, and exporting copies.
+
+The app saves its queue under `~/.local/state/misc-tools/image-studio`, honoring
+`XDG_STATE_HOME`, and images under `~/Pictures/Image Studio`. Each image has a
+JSON sidecar with its prompt, seed, dimensions, workflow, and pinned model-file
+identities. Retry preserves the seed; Regenerate chooses a new one.
+
+Pending jobs survive restarts. A running job reconnects using its saved ComfyUI
+prompt ID. If the backend loses a job, it becomes a retryable failure instead of
+silently generating a duplicate. Pause stops new jobs; cancelling a running image
+lets that image finish and discards its result. This avoids interrupting someone
+else's ComfyUI job. Completed images remain available.
+
+### Install on Fedora with an NVIDIA GPU
+
+Set up the local runtime, then build and install the app. The runtime download is
+about 25 GB of weights plus Python/CUDA packages. It lives outside the repository.
+
+```bash
+./.agents/tools/setup-image-runtime.py --list
+./.agents/tools/setup-image-runtime.py
+./.agents/tools/cargo.sh build --locked --release --package image-studio
+./.agents/tools/install-desktop.py --app image-studio
+```
+
+Launch **Image Studio** from KDE's application menu or desktop, or run
+`~/.local/bin/image-studio`. For development, use `./run-image-studio.sh`.
+The launcher starts the local backend on demand; the service is not enabled at login.
+Use **Engine & models** in the app to inspect availability or restart the service.
+The service listens only on `127.0.0.1:8190`, with cloud API nodes and custom nodes
+turned off. Generation runs offline after installation. See
+[the runtime notes](apps/image-studio/RUNTIME.md) for dependencies and troubleshooting.
+
+Ideogram and FLUX.2 Dev are optional larger downloads using NVFP4 quantization
+for supported NVIDIA Blackwell GPUs, including the RTX 5070 Ti:
+
+```bash
+./.agents/tools/setup-image-runtime.py --models ideogram flux-dev --list
+./.agents/tools/setup-image-runtime.py --models ideogram flux-dev
+```
+
+These add about 51 GB of weights to the default installation. FLUX.2 Dev retains
+the full 32B model and uses disk offloading on a 16 GB GPU. Ideogram uses its
+48-step Quality preset. Both use non-commercial model licenses; check the
+[runtime notes](apps/image-studio/RUNTIME.md) before commercial use.
+
+The first version supports text-to-image with these four recipes. Image editing,
+video generation, and installing arbitrary models through the GUI are outside
+this version. ComfyUI remains a separate GPL-licensed dependency; our app code is
+MIT. The default Klein and Z-Image model releases are Apache 2.0; the optional
+Ideogram and FLUX.2 Dev weights retain their own licenses.
+
 ## YouTube downloader
 
 A Rust desktop app built with GPUI Kit and yt-dlp. The first version targets Linux.
@@ -71,7 +129,7 @@ Engine tests use controlled local processes, including descendants and failing d
 
 ## Planned tools
 
-- **Local image and video generation:** an interface for running open-source models on hardware you own and control. Model selection is pending; separate image and video models are acceptable if needed.
+- **Local image editing and video generation:** extend Image Studio with reference images and a separately selected video model.
 
 The MIT license covers this repository's original code. Third-party tools and model weights retain their own licenses.
 

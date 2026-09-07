@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """Install the release build and its desktop launchers for the current Linux user."""
 from pathlib import Path
+import argparse
 import os
 import shlex
 import shutil
 import subprocess
 
 repo = Path(__file__).resolve().parents[2]
-root = Path.home() / '.local/opt/youtube-downloader'
-binary = repo / 'target/release/youtube-downloader'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--app', choices=['youtube-downloader', 'image-studio'], default='youtube-downloader')
+app = parser.parse_args().app
+studio = app == 'image-studio'
+name = 'Image Studio' if studio else 'YouTube Downloader'
+icon = 'icon.svg' if studio else 'icon.png'
+root = Path.home() / '.local/opt' / app
+binary = repo / 'target/release' / app
 if not binary.is_file():
-    raise SystemExit('Build first: .agents/tools/cargo.sh build --locked --release -p youtube-downloader')
+    raise SystemExit(f'Build first: .agents/tools/cargo.sh build --locked --release -p {app}')
 
 
 def copy(source, destination):
@@ -20,20 +27,21 @@ def copy(source, destination):
     temporary.replace(destination)
 
 
-copy(binary, root / 'youtube-downloader')
-copy(repo / 'apps/youtube-downloader/assets/icon.png', root / 'icon.png')
+copy(binary, root / app)
+copy(repo / 'apps' / app / 'assets' / icon, root / icon)
 copy(repo / 'LICENSE', root / 'LICENSE')
 # Reuse project-local runtime downloads when present; otherwise use installed tools.
-for name in ('yt-dlp', 'deno'):
-    source = repo / '.tools/bin' / name
+for tool in (() if studio else ('yt-dlp', 'deno')):
+    source = repo / '.tools/bin' / tool
     if source.is_file():
-        copy(source, root / 'bin' / name)
-launcher = Path.home() / '.local/bin/youtube-downloader'
+        copy(source, root / 'bin' / tool)
+launcher = Path.home() / '.local/bin' / app
 launcher.parent.mkdir(parents=True, exist_ok=True)
+startup = 'systemctl --user start misc-tools-comfyui.service || true\n' if studio else ''
 launcher.write_text(
     '#!/usr/bin/env bash\nset -euo pipefail\n'
     f'export PATH={shlex.quote(str(root / "bin"))}:"$PATH"\n'
-    f'exec {shlex.quote(str(root / "youtube-downloader"))} "$@"\n'
+    + startup + f'exec {shlex.quote(str(root / app))} "$@"\n'
 )
 launcher.chmod(0o755)
 
@@ -44,14 +52,15 @@ def desktop_quote(value):
 
 
 data_home = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
-entry = data_home / 'applications/misc-tools-youtube-downloader.desktop'
+entry = data_home / 'applications' / f'misc-tools-{app}.desktop'
 entry.parent.mkdir(parents=True, exist_ok=True)
 entry.write_text(
-    '[Desktop Entry]\nType=Application\nName=YouTube Downloader\n'
-    'Comment=Download YouTube video or audio\n'
-    f'Exec={desktop_quote(launcher)}\nIcon={root / "icon.png"}\n'
-    'Terminal=false\nCategories=AudioVideo;\nKeywords=YouTube;video;audio;download;\n'
-    'StartupWMClass=misc-tools-youtube-downloader\n'
+    f'[Desktop Entry]\nType=Application\nName={name}\n'
+    f'Comment={"Generate images locally with multiple models" if studio else "Download YouTube video or audio"}\n'
+    f'Exec={desktop_quote(launcher)}\nIcon={root / icon}\n'
+    f'Terminal=false\nCategories={"Graphics;" if studio else "AudioVideo;"}\n'
+    f'Keywords={"images;AI;generation;models;" if studio else "YouTube;video;audio;download;"}\n'
+    f'StartupWMClass=misc-tools-{app}\n'
 )
 if shutil.which('xdg-user-dir'):
     desktop = Path(subprocess.check_output(['xdg-user-dir', 'DESKTOP'], text=True).strip())

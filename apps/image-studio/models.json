@@ -1,0 +1,118 @@
+{
+  "comfyui_commit": "25dfc16f9ac0a87991d34fbf5f02d6c25c844639",
+  "files": [
+    {
+      "repo": "black-forest-labs/FLUX.2-klein-4b-fp8",
+      "revision": "5b4408e59397a4a37ccb46afe426d8ed86379441",
+      "path": "flux-2-klein-4b-fp8.safetensors",
+      "directory": "diffusion_models",
+      "filename": "flux-2-klein-4b-fp8.safetensors",
+      "bytes": 4070624520,
+      "sha256": "97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6"
+    },
+    {
+      "repo": "Comfy-Org/z_image_turbo",
+      "revision": "08d04455279082882deaabc8d0d09fc914c071e1",
+      "path": "split_files/diffusion_models/z_image_turbo_bf16.safetensors",
+      "directory": "diffusion_models",
+      "filename": "z_image_turbo_bf16.safetensors",
+      "bytes": 12309866400,
+      "sha256": "2407613050b809ffdff18a4ac99af83ea6b95443ecebdf80e064a79c825574a6"
+    },
+    {
+      "repo": "Comfy-Org/z_image_turbo",
+      "revision": "08d04455279082882deaabc8d0d09fc914c071e1",
+      "path": "split_files/text_encoders/qwen_3_4b.safetensors",
+      "directory": "text_encoders",
+      "filename": "qwen_3_4b.safetensors",
+      "bytes": 8044982048,
+      "sha256": "6c671498573ac2f7a5501502ccce8d2b08ea6ca2f661c458e708f36b36edfc5a"
+    },
+    {
+      "repo": "Comfy-Org/z_image_turbo",
+      "revision": "08d04455279082882deaabc8d0d09fc914c071e1",
+      "path": "split_files/vae/ae.safetensors",
+      "directory": "vae",
+      "filename": "ae.safetensors",
+      "bytes": 335304388,
+      "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+    },
+    {
+      "repo": "Comfy-Org/flux2-klein",
+      "revision": "5f526678002e43af5551dadb73ce2e8c91b43afe",
+      "path": "split_files/vae/flux2-vae.safetensors",
+      "directory": "vae",
+      "filename": "flux2-vae.safetensors",
+      "bytes": 336211292,
+      "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
+    },
+    {
+      "repo": "Comfy-Org/Ideogram-4",
+      "revision": "bbee2ab2b14b2b5223448d12d6e31e5f9cec0546",
+      "path": "diffusion_models/ideogram4_nvfp4_mixed.safetensors",
+      "directory": "diffusion_models",
+      "filename": "ideogram4_nvfp4_mixed.safetensors",
+      "bytes": 5490550037,
+      "sha256": "e7923b4b0a1129ae5afcc09e63046185688c8b09eb9a1a748cccdbde5d381609"
+    },
+    {
+      "repo": "Comfy-Org/Ideogram-4",
+      "revision": "bbee2ab2b14b2b5223448d12d6e31e5f9cec0546",
+      "path": "diffusion_models/ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "directory": "diffusion_models",
+      "filename": "ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "bytes": 5490550037,
+      "sha256": "639e37bd1dd7ee35e23c7cfccf93a518ddc7f4587818956ec42b31e659fd6ac0"
+    },
+    {
+      "repo": "Comfy-Org/Ideogram-4",
+      "revision": "bbee2ab2b14b2b5223448d12d6e31e5f9cec0546",
+      "path": "text_encoders/qwen3vl_8b_nvfp4.safetensors",
+      "directory": "text_encoders",
+      "filename": "qwen3vl_8b_nvfp4.safetensors",
+      "bytes": 6305221764,
+      "sha256": "e462e9e0c3b9313ae17f82040d7c77beb92d7aef3e40692d7803228dab7c3b98"
+    },
+    {
+      "repo": "black-forest-labs/FLUX.2-dev-NVFP4",
+      "revision": "142b87e70bc3006937b7093d89ff287b5f59f071",
+      "path": "flux2-dev-nvfp4.safetensors",
+      "directory": "diffusion_models",
+      "filename": "flux2-dev-nvfp4.safetensors",
+      "bytes": 21035602376,
+      "sha256": "be024af73a82d193b1c5aca4d2f7cd1a3fb361f4b621bb214b9ee422b1e04a5e"
+    },
+    {
+      "repo": "Comfy-Org/flux2-dev",
+      "revision": "ab9055628ea245000e610f2aa2c96f4746093546",
+      "path": "split_files/text_encoders/mistral_3_small_flux2_fp4_mixed.safetensors",
+      "directory": "text_encoders",
+      "filename": "mistral_3_small_flux2_fp4_mixed.safetensors",
+      "bytes": 12275678071,
+      "sha256": "1ee1ff334d78228d73049ef0ee4fcd21c1700536b5a45c06547af057f92463a7"
+    }
+  ],
+  "models": {
+    "klein": [
+      "flux-2-klein-4b-fp8.safetensors",
+      "qwen_3_4b.safetensors",
+      "flux2-vae.safetensors"
+    ],
+    "z-image": [
+      "z_image_turbo_bf16.safetensors",
+      "qwen_3_4b.safetensors",
+      "ae.safetensors"
+    ],
+    "ideogram": [
+      "ideogram4_nvfp4_mixed.safetensors",
+      "ideogram4_unconditional_nvfp4_mixed.safetensors",
+      "qwen3vl_8b_nvfp4.safetensors",
+      "flux2-vae.safetensors"
+    ],
+    "flux-dev": [
+      "flux2-dev-nvfp4.safetensors",
+      "mistral_3_small_flux2_fp4_mixed.safetensors",
+      "flux2-vae.safetensors"
+    ]
+  }
+}
