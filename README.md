@@ -40,6 +40,17 @@ cargo build --locked --release --package youtube-downloader
 ./target/release/youtube-downloader
 ```
 
+For a user-local installation with an application-menu entry and desktop shortcut:
+
+```bash
+./.agents/tools/install-desktop.py
+```
+
+The installer copies the release binary and icon into `~/.local/opt/youtube-downloader`
+and creates `~/.local/bin/youtube-downloader`. Restart the app after reinstalling.
+If this checkout has project-local yt-dlp and Deno binaries, it copies them into the
+app's private `bin` directory; otherwise they must already be on PATH.
+
 The binary uses separately installed download tools. It does not bundle or silently update them. If YouTube extraction stops working, update yt-dlp and its challenge components first. The app reports missing executables at startup.
 
 Downloads and conversions run in `.misc-tools-partials` inside the selected folder. Completed files move atomically into the destination without replacing existing files. Cancelled or failed conversions are discarded; download fragments remain for retry. You may remove `.misc-tools-partials` when no downloads are running if you no longer need those fragments.

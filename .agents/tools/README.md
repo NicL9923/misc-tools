@@ -1,5 +1,6 @@
 # Developer tools
 
+- `install-desktop.py`: install the release binary, generated icon, and menu/desktop launchers for the current Linux user; copy project-local yt-dlp and Deno when present.
 - `cargo.sh`: run Cargo from the workspace root, using optional project-local tools in `.tools/env.sh`.
 - `unpack-build-deps.py`: unpack downloaded Fedora build RPMs into this checkout's ignored `.tools/sysroot`, without changing system packages.
 
