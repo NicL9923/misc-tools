@@ -373,6 +373,9 @@ fn failed_persistence_does_not_accept_or_submit_jobs() {
     let cfg = config(&dir, &server);
     let engine = Engine::open(cfg.clone()).unwrap();
     engine.set_paused(true).unwrap();
+    // Initial model discovery also writes the queue. Let that transaction finish
+    // before replacing its temporary file path with the failure fixture.
+    wait(|| engine.snapshot().models.len() == Model::ALL.len());
     let saved = std::fs::read(cfg.state_dir.join("queue.json")).unwrap();
     std::fs::create_dir(cfg.state_dir.join("queue.json.tmp")).unwrap();
     assert!(engine.enqueue(batch(vec![Model::Klein4B], 1)).is_err());
