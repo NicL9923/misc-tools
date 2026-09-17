@@ -1790,6 +1790,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "file-converter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "gpui-kit",
+ "libc",
+ "tempfile",
+ "url",
+]
+
+[[package]]
 name = "filedescriptor"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

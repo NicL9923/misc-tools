@@ -2,7 +2,7 @@
 
 - `capture-x11.py`: capture one app window on an isolated X11 display for visual verification.
 - `setup-image-runtime.py`: install pinned ComfyUI and verified models; default Klein/Z-Image, optional `--models ideogram flux-dev`, `--list` previews downloads, `--skip-models` installs only the runtime.
-- `install-desktop.py`: install a release binary, icon, and menu/desktop launchers; defaults to the downloader, or use `--app image-studio`. Copies project-local yt-dlp and Deno for the downloader when present.
+- `install-desktop.py`: install a release binary, icon, and menu/desktop launchers; defaults to the downloader, or use `--app image-studio` or `--app file-converter`. Copies project-local yt-dlp and Deno for the downloader when present.
 - `cargo.sh`: run Cargo from the workspace root, using optional project-local tools in `.tools/env.sh`.
 - `unpack-build-deps.py`: unpack downloaded Fedora build RPMs into this checkout's ignored `.tools/sysroot`, without changing system packages.
 

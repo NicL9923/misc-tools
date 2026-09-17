@@ -9,11 +9,12 @@ import subprocess
 
 repo = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--app', choices=['youtube-downloader', 'image-studio'], default='youtube-downloader')
+parser.add_argument('--app', choices=['youtube-downloader', 'image-studio', 'file-converter'], default='youtube-downloader')
 app = parser.parse_args().app
 studio = app == 'image-studio'
-name = 'Image Studio' if studio else 'YouTube Downloader'
-icon = 'icon.svg' if studio else 'icon.png'
+converter = app == 'file-converter'
+name = 'File Converter' if converter else 'Image Studio' if studio else 'YouTube Downloader'
+icon = 'icon.svg' if studio or converter else 'icon.png'
 root = Path.home() / '.local/opt' / app
 binary = repo / 'target/release' / app
 if not binary.is_file():
@@ -31,7 +32,7 @@ copy(binary, root / app)
 copy(repo / 'apps' / app / 'assets' / icon, root / icon)
 copy(repo / 'LICENSE', root / 'LICENSE')
 # Reuse project-local runtime downloads when present; otherwise use installed tools.
-for tool in (() if studio else ('yt-dlp', 'deno')):
+for tool in (() if studio or converter else ('yt-dlp', 'deno')):
     source = repo / '.tools/bin' / tool
     if source.is_file():
         copy(source, root / 'bin' / tool)
@@ -56,10 +57,10 @@ entry = data_home / 'applications' / f'misc-tools-{app}.desktop'
 entry.parent.mkdir(parents=True, exist_ok=True)
 entry.write_text(
     f'[Desktop Entry]\nType=Application\nName={name}\n'
-    f'Comment={"Generate images locally with multiple models" if studio else "Download YouTube video or audio"}\n'
+    f'Comment={"Convert images, media and documents locally" if converter else "Generate images locally with multiple models" if studio else "Download YouTube video or audio"}\n'
     f'Exec={desktop_quote(launcher)}\nIcon={root / icon}\n'
-    f'Terminal=false\nCategories={"Graphics;" if studio else "AudioVideo;"}\n'
-    f'Keywords={"images;AI;generation;models;" if studio else "YouTube;video;audio;download;"}\n'
+    f'Terminal=false\nCategories={"Utility;" if converter else "Graphics;" if studio else "AudioVideo;"}\n'
+    f'Keywords={"convert;image;audio;video;PDF;document;" if converter else "images;AI;generation;models;" if studio else "YouTube;video;audio;download;"}\n'
     f'StartupWMClass=misc-tools-{app}\n'
 )
 if shutil.which('xdg-user-dir'):

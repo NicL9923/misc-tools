@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/youtube-downloader", "apps/image-studio"]
+members = ["apps/youtube-downloader", "apps/image-studio", "apps/file-converter"]
 resolver = "3"
 
 [workspace.package]

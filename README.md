@@ -2,6 +2,75 @@
 
 Custom utilities by Nicolas, licensed under MIT.
 
+## File converter
+
+A Rust/GPUI app for batch conversions on Linux. Add multiple files, choose an
+output format for each, and save beside the originals or in another folder.
+Conversions run locally. Existing files keep their names; new results receive
+numbered suffixes when needed. You can cancel a batch and retry failed items.
+
+| Files | Outputs | Engine |
+| --- | --- | --- |
+| Images, including HEIC, AVIF, SVG, JPEG, PNG, WebP, GIF, TIFF | PNG, JPEG, WebP, AVIF, TIFF, BMP, GIF, ICO, PDF | ImageMagick |
+| Audio | MP3, M4A, FLAC, WAV, OGG, Opus | FFmpeg |
+| Video | MP4, MKV, WebM, MOV, or extracted audio | FFmpeg |
+| Word, OpenDocument text, RTF | PDF, DOCX, ODT, RTF, TXT | LibreOffice |
+| Excel, OpenDocument sheets, CSV | XLSX, ODS, PDF, CSV | LibreOffice |
+| PowerPoint, OpenDocument slides | PDF, PPTX, ODP | LibreOffice |
+| Markdown, HTML, plain text, EPUB | HTML, DOCX, ODT, Markdown, TXT, EPUB | Pandoc |
+| PDF | Text, first-page PNG or JPEG | Poppler |
+
+Image conversions use the first frame or page. JPEG gets a white background
+where the source is transparent. SVG becomes a raster image. CSV exports one
+sheet without formatting. PDF text extraction does not perform OCR.
+Media conversion uses the first video and audio tracks; it omits subtitles and
+extra tracks. Document layout can change, so check the result.
+
+Codec and image-delegate availability depends on the installed engines.
+The app reports missing executables and conversion failures per file.
+It does not edit PDFs, vectorize images, convert archives, or remove DRM.
+
+### Run the converter
+
+Use the Linux build dependencies listed under the downloader below. Install
+the conversion engines for the file types you need:
+
+```bash
+sudo dnf install ImageMagick libreoffice-writer libreoffice-calc \
+  libreoffice-impress poppler-utils pandoc
+# FFmpeg also needs the encoders used by your chosen formats, including
+# libx264 for MP4/MOV/MKV and libmp3lame for MP3.
+./run-file-converter.sh
+# File paths can also populate the queue at launch:
+./run-file-converter.sh ~/Pictures/photo.heic ~/Documents/report.docx
+```
+
+For a desktop launcher:
+
+```bash
+./.agents/tools/cargo.sh build --locked --release --package file-converter
+./.agents/tools/install-desktop.py --app file-converter
+```
+
+The engine stages files inside the destination folder and publishes completed
+outputs atomically without overwriting existing files. Allow room for a copy
+of the input plus the output. LibreOffice uses an isolated profile for each
+conversion. Closing the app cancels the active conversion. Completed files stay
+saved; the queue itself is not persisted.
+
+Engine usage follows the [FFmpeg command-line documentation](https://ffmpeg.org/ffmpeg.html)
+and [LibreOffice conversion parameters](https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html).
+
+### Converter checks
+
+```bash
+./.agents/tools/cargo.sh test --locked -p file-converter
+# Explicit live checks require the engines and codecs listed by each test:
+./.agents/tools/cargo.sh test --locked -p file-converter --test conversions -- --ignored
+# Convert one file without the GUI:
+./.agents/tools/cargo.sh run --locked -p file-converter --example convert -- SOURCE TARGET_EXTENSION [FOLDER]
+```
+
 ## Image Studio
 
 A Rust/GPUI app for generating images locally through ComfyUI. Choose FLUX.2
