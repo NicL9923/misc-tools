@@ -44,7 +44,10 @@ impl Server {
         thread::spawn(move || {
             while !end.load(Ordering::Relaxed) {
                 match listener.accept() {
-                    Ok((stream, _)) => serve(stream, &s),
+                    Ok((stream, _)) => {
+                        let state = s.clone();
+                        thread::spawn(move || serve(stream, &state));
+                    }
                     Err(_) => thread::sleep(Duration::from_millis(5)),
                 }
             }
@@ -78,7 +81,18 @@ fn serve(mut stream: TcpStream, state: &Mutex<Backend>) {
     let mut buf = [0; 4096];
     let end;
     loop {
-        let n = stream.read(&mut buf).unwrap();
+        let n = match stream.read(&mut buf) {
+            Ok(n) => n,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return;
+            }
+            Err(error) => panic!("request read failed: {error}"),
+        };
         if n == 0 {
             return;
         }
@@ -208,6 +222,15 @@ fn wait(check: impl Fn() -> bool) {
         assert!(start.elapsed() < Duration::from_secs(8), "timed out");
         thread::sleep(Duration::from_millis(20));
     }
+}
+#[test]
+fn idle_connection_does_not_block_other_requests() {
+    let server = Server::start();
+    let _idle = TcpStream::connect(server.url.trim_start_matches("http://")).unwrap();
+    let dir = TempDir::new().unwrap();
+    let engine = Engine::open(config(&dir, &server)).unwrap();
+    engine.enqueue(batch(vec![Model::Klein4B], 1)).unwrap();
+    wait(|| server.state.lock().unwrap().submissions.len() == 1);
 }
 #[test]
 fn cancellation_during_image_download_discards_the_result() {
